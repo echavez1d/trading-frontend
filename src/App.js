@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './App.css';
 
@@ -47,11 +47,10 @@ const Header = ({ user, onLogout, onSwitchMode, tradingMode }) => (
       </div>
     </div>
   </header>
+
 );
 
-
 const LoginForm = ({ onLogin, onSwitchToRegister }) => {
-  const [rememberMe, setRememberMe] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -63,13 +62,7 @@ const LoginForm = ({ onLogin, onSwitchToRegister }) => {
     setError('');
 
     try {
-      const response = await axios.post('/api/auth/login', { email, password, remember_me: rememberMe });
-      // Store token in localStorage if rememberMe, else sessionStorage
-      if (rememberMe) {
-        localStorage.setItem('token', response.data.access_token);
-      } else {
-        sessionStorage.setItem('token', response.data.access_token);
-      }
+      const response = await axios.post('/api/auth/login', { email, password });
       onLogin(response.data);
     } catch (err) {
       setError(err.response?.data?.detail || 'Authentication failed');
@@ -118,19 +111,6 @@ const LoginForm = ({ onLogin, onSwitchToRegister }) => {
               required
             />
           </div>
-
-          <div className="form-group flex items-center">
-            <input
-              id="rememberMe"
-              type="checkbox"
-              checked={rememberMe}
-              onChange={e => setRememberMe(e.target.checked)}
-              className="form-checkbox h-4 w-4 text-gold transition duration-150"
-            />
-            <label htmlFor="rememberMe" className="ml-2 text-sm text-gold">
-              Remember Me
-            </label>
-          </div>
           
           <button
             type="submit"
@@ -156,7 +136,6 @@ const LoginForm = ({ onLogin, onSwitchToRegister }) => {
 };
 
 const RegisterForm = ({ onRegister, onSwitchToLogin }) => {
-  const [rememberMe, setRememberMe] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
@@ -222,19 +201,6 @@ const RegisterForm = ({ onRegister, onSwitchToLogin }) => {
               required
             />
           </div>
-
-          <div className="form-group flex items-center">
-            <input
-              id="rememberMe"
-              type="checkbox"
-              checked={rememberMe}
-              onChange={e => setRememberMe(e.target.checked)}
-              className="form-checkbox h-4 w-4 text-gold transition duration-150"
-            />
-            <label htmlFor="rememberMe" className="ml-2 text-sm text-gold">
-              Remember Me
-            </label>
-         </div>
           
           <div className="form-group">
             <label className="form-label">Password</label>
@@ -285,68 +251,28 @@ const TradingInterface = ({ user, tradingMode, onNotification }) => {
   const [symbolValidation, setSymbolValidation] = useState({ valid: true, message: '' });
   const [symbolValidating, setSymbolValidating] = useState(false);
 
-  // Fetch account info
-  const fetchAccountInfo = useCallback(async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get('/api/trading/account', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setAccountInfo(response.data);
-    } catch (error) {
-      console.error('Error fetching account info:', error);
-      if (onNotification) {
-        onNotification('Unable to fetch account information. Please check your API keys.', 'error');
-      }
-    }
-  }, [onNotification]);
-
-  // Fetch positions
-  const fetchPositions = useCallback(async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get('/api/trading/positions', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setPositions(response.data);
-    } catch (error) {
-      console.error('Error fetching positions:', error);
-    }
-  }, []);
-
-  // Fetch orders
-  const fetchOrders = useCallback(async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get('/api/trading/orders', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setOrders(response.data.orders || []);
-    } catch (error) {
-      console.error('Error fetching orders:', error);
-    }
-  }, []);
-
-  // Fetch data on mount or tradingMode change
+// eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    fetchAccountInfo();
-    fetchPositions();
-    fetchOrders();
-  }, [tradingMode, fetchAccountInfo, fetchPositions, fetchOrders]);
+   fetchAccountInfo();
+   fetchPositions();
+   fetchOrders();
+  }, [tradingMode]);
 
-  // Symbol validation
+  // Validate symbol when it changes
   useEffect(() => {
     const validateSymbol = async () => {
       if (!orderForm.symbol || orderForm.symbol.length < 1) {
         setSymbolValidation({ valid: true, message: '' });
         return;
       }
+
       setSymbolValidating(true);
       try {
         const token = localStorage.getItem('token');
         const response = await axios.get(`/api/trading/validate-symbol/${orderForm.symbol}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
+        
         setSymbolValidation({
           valid: response.data.tradable,
           message: response.data.message
@@ -360,15 +286,57 @@ const TradingInterface = ({ user, tradingMode, onNotification }) => {
         setSymbolValidating(false);
       }
     };
-    const timeoutId = setTimeout(validateSymbol, 500);
+
+    const timeoutId = setTimeout(validateSymbol, 500); // Debounce validation
     return () => clearTimeout(timeoutId);
   }, [orderForm.symbol]);
 
-  // Place order handler
+
+
+  const fetchAccountInfo = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get('/api/trading/account', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setAccountInfo(response.data);
+    } catch (error) {
+      console.error('Error fetching account info:', error);
+      if (onNotification) {
+        onNotification('Unable to fetch account information. Please check your API keys.', 'error');
+      }
+    }
+  };
+
+  const fetchPositions = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get('/api/trading/positions', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setPositions(response.data);
+    } catch (error) {
+      console.error('Error fetching positions:', error);
+    }
+  };
+
+  const fetchOrders = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get('/api/trading/orders', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setOrders(response.data.orders || []);
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+    }
+  };
+
   const handlePlaceOrder = async (e) => {
     e.preventDefault();
     setLoading(true);
 
+    // Frontend validation
     if (orderForm.order_type === 'limit' && (!orderForm.limit_price || parseFloat(orderForm.limit_price) <= 0)) {
       if (onNotification) {
         onNotification('Limit price is required for limit orders and must be greater than 0', 'error');
@@ -389,6 +357,7 @@ const TradingInterface = ({ user, tradingMode, onNotification }) => {
       const orderTypeText = orderForm.order_type === 'limit' ? 
         `${orderForm.order_type.toUpperCase()} order at $${orderForm.limit_price}` : 
         `${orderForm.order_type.toUpperCase()} order`;
+        
       const confirmed = window.confirm(
         `⚠️ LIVE TRADING CONFIRMATION\n\nYou are about to place a ${orderForm.side.toUpperCase()} ${orderTypeText} for ${orderForm.quantity} shares of ${orderForm.symbol.toUpperCase()} using REAL MONEY.\n\nThis action cannot be undone. Continue?`
       );
@@ -406,13 +375,16 @@ const TradingInterface = ({ user, tradingMode, onNotification }) => {
         side: orderForm.side,
         order_type: orderForm.order_type
       };
+
       if (orderForm.order_type === 'limit') {
         orderData.limit_price = parseFloat(orderForm.limit_price);
       }
+
       const response = await axios.post('/api/trading/orders', orderData, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
+      // Reset form and refresh data
       setOrderForm({ 
         symbol: '', 
         quantity: '', 
@@ -423,6 +395,7 @@ const TradingInterface = ({ user, tradingMode, onNotification }) => {
       fetchAccountInfo();
       fetchPositions();
       fetchOrders();
+      
       if (onNotification) {
         const orderDetails = response.data.order_type === 'limit' ? 
           `${orderData.side.toUpperCase()} ${orderData.quantity} ${orderData.symbol} at $${orderData.limit_price}` :
@@ -449,158 +422,223 @@ const TradingInterface = ({ user, tradingMode, onNotification }) => {
 
   return (
     <div className="trading-interface">
-      <h2>Trading Interface</h2>
-      <p>Welcome, {user?.full_name}! You are in {tradingMode === 'paper' ? 'Simulation' : 'Live'} mode.</p>
-
       {/* Account Overview */}
-      <div className="account-overview glass-panel">
-        <h3>Account Overview</h3>
-        {accountInfo ? (
-          <ul>
-            <li><strong>Account ID:</strong> {accountInfo.account_id}</li>
-            <li><strong>Equity:</strong> ${accountInfo.equity}</li>
-            <li><strong>Buying Power:</strong> ${accountInfo.buying_power}</li>
-            <li><strong>Status:</strong> {accountInfo.status}</li>
-          </ul>
-        ) : (
-          <p>Loading account info...</p>
-        )}
+      <div className="account-overview">
+        <div className="glass-panel">
+          <h3 className="panel-title">Account Overview</h3>
+          {accountInfo ? (
+            <div className="account-stats">
+              <div className="stat-item">
+                <span className="stat-label">Portfolio Value</span>
+                <span className="stat-value">${accountInfo.portfolio_value?.toLocaleString()}</span>
+              </div>
+              <div className="stat-item">
+                <span className="stat-label">Buying Power</span>
+                <span className="stat-value text-green">${accountInfo.buying_power?.toLocaleString()}</span>
+              </div>
+              <div className="stat-item">
+                <span className="stat-label">Cash</span>
+                <span className="stat-value">${accountInfo.cash?.toLocaleString()}</span>
+              </div>
+              <div className="stat-item">
+                <span className="stat-label">Day Trades</span>
+                <span className="stat-value">{accountInfo.day_trade_count}/3</span>
+              </div>
+            </div>
+          ) : (
+            <div className="loading-state">
+              <div className="loading-spinner"></div>
+              <p>Configure Alpaca API keys to enable trading</p>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Order Form */}
-      <div className="order-form glass-panel">
-        <h3>Place Order</h3>
-        <form onSubmit={handlePlaceOrder}>
-          <div className="form-row">
-            <label>Symbol</label>
-            <input
-              type="text"
-              value={orderForm.symbol}
-              onChange={e => setOrderForm({ ...orderForm, symbol: e.target.value.toUpperCase() })}
-              required
-            />
-            {symbolValidating && <span className="loading-spinner"></span>}
-            {!symbolValidation.valid && (
-              <span className="error-text">{symbolValidation.message}</span>
-            )}
-          </div>
-          <div className="form-row">
-            <label>Quantity</label>
-            <input
-              type="number"
-              value={orderForm.quantity}
-              onChange={e => setOrderForm({ ...orderForm, quantity: e.target.value })}
-              required
-              min="1"
-            />
-          </div>
-          <div className="form-row">
-            <label>Side</label>
-            <select
-              value={orderForm.side}
-              onChange={e => setOrderForm({ ...orderForm, side: e.target.value })}
-            >
-              <option value="buy">Buy</option>
-              <option value="sell">Sell</option>
-            </select>
-          </div>
-          <div className="form-row">
-            <label>Order Type</label>
-            <select
-              value={orderForm.order_type}
-              onChange={e => setOrderForm({ ...orderForm, order_type: e.target.value })}
-            >
-              <option value="market">Market</option>
-              <option value="limit">Limit</option>
-            </select>
-          </div>
-          {orderForm.order_type === 'limit' && (
+      <div className="order-section">
+        <div className="glass-panel">
+          <h3 className="panel-title">Place Order</h3>
+          <form onSubmit={handlePlaceOrder} className="order-form">
             <div className="form-row">
-              <label>Limit Price</label>
-              <input
-                type="number"
-                value={orderForm.limit_price}
-                onChange={e => setOrderForm({ ...orderForm, limit_price: e.target.value })}
-                min="0"
-                step="0.01"
-                required
-              />
+              <div className="form-group">
+                <label className="form-label">Symbol</label>
+                <div className="symbol-input-container">
+                  <input
+                    type="text"
+                    value={orderForm.symbol}
+                    onChange={(e) => setOrderForm({...orderForm, symbol: e.target.value.toUpperCase()})}
+                    className={`form-input ${!symbolValidation.valid && orderForm.symbol ? 'error' : ''}`}
+                    placeholder="AAPL"
+                    required
+                  />
+                  {symbolValidating && <div className="symbol-validating">Validating...</div>}
+                </div>
+                {orderForm.symbol && !symbolValidation.valid && (
+                  <div className="validation-message error">
+                    {symbolValidation.message}
+                  </div>
+                )}
+                {orderForm.symbol && symbolValidation.valid && symbolValidation.message && (
+                  <div className="validation-message success">
+                    ✓ Symbol is tradable
+                  </div>
+                )}
+              </div>
+              <div className="form-group">
+                <label className="form-label">Quantity</label>
+                <input
+                  type="number"
+                  value={orderForm.quantity}
+                  onChange={(e) => setOrderForm({...orderForm, quantity: e.target.value})}
+                  className="form-input"
+                  placeholder="100"
+                  min="1"
+                  required
+                />
+              </div>
             </div>
-          )}
-          <button type="submit" disabled={loading || !isOrderFormValid()}>
-            {loading ? 'Placing Order...' : 'Place Order'}
-          </button>
-        </form>
+            
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Side</label>
+                <select
+                  value={orderForm.side}
+                  onChange={(e) => setOrderForm({...orderForm, side: e.target.value})}
+                  className="form-select"
+                >
+                  <option value="buy">Buy</option>
+                  <option value="sell">Sell</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Order Type</label>
+                <select
+                  value={orderForm.order_type}
+                  onChange={(e) => setOrderForm({
+                    ...orderForm, 
+                    order_type: e.target.value,
+                    limit_price: e.target.value === 'market' ? '' : orderForm.limit_price
+                  })}
+                  className="form-select"
+                >
+                  <option value="market">Market</option>
+                  <option value="limit">Limit</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Limit Price Field - Only shown for limit orders */}
+            {orderForm.order_type === 'limit' && (
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Limit Price ($)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={orderForm.limit_price}
+                    onChange={(e) => setOrderForm({...orderForm, limit_price: e.target.value})}
+                    className="form-input"
+                    placeholder="0.00"
+                    min="0.01"
+                    required
+                  />
+                  <div className="form-helper">
+                    Set the maximum price you're willing to pay (buy) or minimum price you'll accept (sell)
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            <button
+              type="submit"
+              disabled={loading || !isOrderFormValid()}
+              className={`order-submit-btn ${orderForm.side === 'buy' ? 'buy-btn' : 'sell-btn'}`}
+            >
+              {loading ? 'Placing Order...' : 
+               `${orderForm.side === 'buy' ? 'Buy' : 'Sell'} ${orderForm.symbol || 'Stock'}${
+                 orderForm.order_type === 'limit' && orderForm.limit_price ? ` at $${orderForm.limit_price}` : ''
+               }`}
+            </button>
+          </form>
+        </div>
       </div>
 
       {/* Positions */}
-      <div className="positions glass-panel">
-        <h3>Open Positions</h3>
-        {positions && positions.length > 0 ? (
-          <table>
-            <thead>
-              <tr>
-                <th>Symbol</th>
-                <th>Qty</th>
-                <th>Avg Price</th>
-                <th>Market Value</th>
-                <th>Unrealized P&L</th>
-              </tr>
-            </thead>
-            <tbody>
-              {positions.map(pos => (
-                <tr key={pos.symbol}>
-                  <td>{pos.symbol}</td>
-                  <td>{pos.qty}</td>
-                  <td>${pos.avg_entry_price}</td>
-                  <td>${pos.market_value}</td>
-                  <td className={parseFloat(pos.unrealized_pl) >= 0 ? 'positive' : 'negative'}>
-                    ${pos.unrealized_pl}
-                  </td>
-                </tr>
+      <div className="positions-section">
+        <div className="glass-panel">
+          <h3 className="panel-title">Current Positions</h3>
+          {positions.length > 0 ? (
+            <div className="positions-table">
+              <div className="table-header">
+                <span>Symbol</span>
+                <span>Quantity</span>
+                <span>Avg Cost</span>
+                <span>Market Value</span>
+                <span>Unrealized P&L</span>
+              </div>
+              {positions.map((position, index) => (
+                <div key={index} className="table-row">
+                  <span className="symbol">{position.symbol}</span>
+                  <span>{position.quantity}</span>
+                  <span>${position.avg_cost?.toFixed(2)}</span>
+                  <span>${position.market_value?.toLocaleString()}</span>
+                  <span className={position.unrealized_pnl >= 0 ? 'text-green' : 'text-red'}>
+                    ${position.unrealized_pnl?.toFixed(2)}
+                  </span>
+                </div>
               ))}
-            </tbody>
-          </table>
-        ) : (
-          <p>No open positions.</p>
-        )}
+            </div>
+          ) : (
+            <div className="empty-state">
+              <p>No positions yet. Place your first trade above.</p>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Orders */}
-      <div className="orders glass-panel">
-        <h3>Recent Orders</h3>
-        {orders && orders.length > 0 ? (
-          <table>
-            <thead>
-              <tr>
-                <th>Symbol</th>
-                <th>Qty</th>
-                <th>Side</th>
-                <th>Type</th>
-                <th>Status</th>
-                <th>Filled Avg Price</th>
-              </tr>
-            </thead>
-            <tbody>
-              {orders.slice(0, 10).map(order => (
-                <tr key={order.id}>
-                  <td>{order.symbol}</td>
-                  <td>{order.qty}</td>
-                  <td>{order.side}</td>
-                  <td>{order.type}</td>
-                  <td>{order.status}</td>
-                  <td>{order.filled_avg_price ? `$${order.filled_avg_price}` : '-'}</td>
-                </tr>
+      {/* Recent Orders */}
+      <div className="orders-section">
+        <div className="glass-panel">
+          <h3 className="panel-title">Recent Orders</h3>
+          {orders.length > 0 ? (
+            <div className="orders-table">
+              <div className="table-header">
+                <span>Symbol</span>
+                <span>Side</span>
+                <span>Quantity</span>
+                <span>Type</span>
+                <span>Limit Price</span>
+                <span>Status</span>
+                <span>Time</span>
+              </div>
+              {orders.slice(0, 10).map((order, index) => (
+                <div key={index} className="table-row">
+                  <span className="symbol">{order.symbol}</span>
+                  <span className={order.side === 'buy' ? 'text-green' : 'text-red'}>
+                    {order.side.toUpperCase()}
+                  </span>
+                  <span>{order.qty}</span>
+                  <span className="order-type">{order.order_type?.toUpperCase()}</span>
+                  <span>
+                    {order.limit_price ? `$${parseFloat(order.limit_price).toFixed(2)}` : 
+                     order.stop_price ? `$${parseFloat(order.stop_price).toFixed(2)}` : '-'}
+                  </span>
+                  <span className={`status status-${order.status}`}>{order.status}</span>
+                  <span>{order.submitted_at ? new Date(order.submitted_at).toLocaleTimeString() : '-'}</span>
+                </div>
               ))}
-            </tbody>
-          </table>
-        ) : (
-          <p>No recent orders.</p>
-        )}
+            </div>
+          ) : (
+            <div className="empty-state">
+              <p>No orders yet.</p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
 };
+
 const TradingCharts = ({ user, watchlistSymbols, tradingMode }) => {
   const [selectedSymbol, setSelectedSymbol] = useState(watchlistSymbols[0] || 'AAPL');
   const [chartData, setChartData] = useState([]);
@@ -608,6 +646,7 @@ const TradingCharts = ({ user, watchlistSymbols, tradingMode }) => {
   const [loading, setLoading] = useState(false);
   const [trades, setTrades] = useState([]);
 
+ // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (selectedSymbol) {
       fetchChartData();
@@ -897,7 +936,8 @@ const NewsCenter = ({ user }) => {
   const [activeNewsTab, setActiveNewsTab] = useState('market');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('general');
-
+  
+// eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     fetchNews();
   }, [activeNewsTab, selectedCategory]);
