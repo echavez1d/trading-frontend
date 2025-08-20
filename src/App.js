@@ -251,47 +251,6 @@ const TradingInterface = ({ user, tradingMode, onNotification }) => {
   const [symbolValidation, setSymbolValidation] = useState({ valid: true, message: '' });
   const [symbolValidating, setSymbolValidating] = useState(false);
 
- useEffect(() => {
-   fetchAccountInfo();
-   fetchPositions();
-   fetchOrders();
- }, [tradingMode, fetchAccountInfo, fetchPositions, fetchOrders]);
-
-  // Validate symbol when it changes
-  useEffect(() => {
-    const validateSymbol = async () => {
-      if (!orderForm.symbol || orderForm.symbol.length < 1) {
-        setSymbolValidation({ valid: true, message: '' });
-        return;
-      }
-
-      setSymbolValidating(true);
-      try {
-        const token = localStorage.getItem('token');
-        const response = await axios.get(`/api/trading/validate-symbol/${orderForm.symbol}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        
-        setSymbolValidation({
-          valid: response.data.tradable,
-          message: response.data.message
-        });
-      } catch (error) {
-        setSymbolValidation({
-          valid: false,
-          message: 'Unable to validate symbol'
-        });
-      } finally {
-        setSymbolValidating(false);
-      }
-    };
-
-    const timeoutId = setTimeout(validateSymbol, 500); // Debounce validation
-    return () => clearTimeout(timeoutId);
-  }, [orderForm.symbol]);
-
-
-
   const fetchAccountInfo = useCallback(async () => {
     try {
       const token = localStorage.getItem('token');
@@ -331,11 +290,44 @@ const TradingInterface = ({ user, tradingMode, onNotification }) => {
     }
   }, []);
 
+ useEffect(() => {
+   fetchAccountInfo();
+   fetchPositions();
+   fetchOrders();
+ }, [tradingMode, fetchAccountInfo, fetchPositions, fetchOrders]);
+
+  // Validate symbol when it changes
   useEffect(() => {
-    fetchAccountInfo();
-    fetchPositions();
-    fetchOrders();
-  }, [tradingMode, fetchAccountInfo, fetchPositions, fetchOrders]);  
+    const validateSymbol = async () => {
+      if (!orderForm.symbol || orderForm.symbol.length < 1) {
+        setSymbolValidation({ valid: true, message: '' });
+        return;
+      }
+
+      setSymbolValidating(true);
+      try {
+        const token = localStorage.getItem('token');
+        const response = await axios.get(`/api/trading/validate-symbol/${orderForm.symbol}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        setSymbolValidation({
+          valid: response.data.tradable,
+          message: response.data.message
+        });
+      } catch (error) {
+        setSymbolValidation({
+          valid: false,
+          message: 'Unable to validate symbol'
+        });
+      } finally {
+        setSymbolValidating(false);
+      }
+    };
+
+    const timeoutId = setTimeout(validateSymbol, 500); // Debounce validation
+    return () => clearTimeout(timeoutId);
+  }, [orderForm.symbol]);  
 
 
   const handlePlaceOrder = async (e) => {
@@ -652,12 +644,34 @@ const TradingCharts = ({ user, watchlistSymbols, tradingMode }) => {
   const [loading, setLoading] = useState(false);
   const [trades, setTrades] = useState([]);
 
-  useEffect(() => {
-    if (selectedSymbol) {
-      fetchChartData();
-      fetchUserTrades();
+  const generateMockChartData = (symbol) => {
+    // Generate mock OHLC data
+    const data = [];
+    const basePrice = Math.random() * 100 + 50;
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - 30);
+
+    for (let i = 0; i < 30; i++) {
+      const date = new Date(startDate);
+      date.setDate(date.getDate() + i);
+      
+      const open = basePrice + (Math.random() - 0.5) * 10;
+      const variation = Math.random() * 5;
+      const high = open + variation;
+      const low = open - variation;
+      const close = open + (Math.random() - 0.5) * 3;
+      
+      data.push({
+        date: date.toISOString().split('T')[0],
+        open: parseFloat(open.toFixed(2)),
+        high: parseFloat(high.toFixed(2)),
+        low: parseFloat(low.toFixed(2)),
+        close: parseFloat(close.toFixed(2)),
+        volume: Math.floor(Math.random() * 1000000)
+      });
     }
-}, [selectedSymbol, timeframe, fetchChartData, fetchUserTrades]);
+    return data;
+  };
 
   const fetchChartData = useCallback(async () => {
     setLoading(true);
@@ -702,41 +716,12 @@ const TradingCharts = ({ user, watchlistSymbols, tradingMode }) => {
     }
   }, [selectedSymbol]);
 
-    useEffect(() => {
+  useEffect(() => {
     if (selectedSymbol) {
       fetchChartData();
       fetchUserTrades();
     }
   }, [selectedSymbol, timeframe, fetchChartData, fetchUserTrades]);
-
-  const generateMockChartData = (symbol) => {
-    // Generate mock OHLC data
-    const data = [];
-    const basePrice = Math.random() * 100 + 50;
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - 30);
-
-    for (let i = 0; i < 30; i++) {
-      const date = new Date(startDate);
-      date.setDate(date.getDate() + i);
-      
-      const open = basePrice + (Math.random() - 0.5) * 10;
-      const variation = Math.random() * 5;
-      const high = open + variation;
-      const low = open - variation;
-      const close = open + (Math.random() - 0.5) * 3;
-      
-      data.push({
-        date: date.toISOString().split('T')[0],
-        open: parseFloat(open.toFixed(2)),
-        high: parseFloat(high.toFixed(2)),
-        low: parseFloat(low.toFixed(2)),
-        close: parseFloat(close.toFixed(2)),
-        volume: Math.floor(Math.random() * 1000000)
-      });
-    }
-    return data;
-  };
 
   const calculatePnL = () => {
     const buyTrades = trades.filter(t => t.side === 'buy');
@@ -947,10 +932,6 @@ const NewsCenter = ({ user }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('general');
 
-  useEffect(() => {
-    fetchNews();
-  }, [activeNewsTab, selectedCategory, fetchNews]);
-
   const fetchNews = useCallback(async () => {
     setLoading(true);
     try {
@@ -987,7 +968,7 @@ const NewsCenter = ({ user }) => {
     }
   }, [activeNewsTab, selectedCategory]);
 
-    useEffect(() => {
+  useEffect(() => {
     fetchNews();
   }, [activeNewsTab, selectedCategory, fetchNews]);
 
