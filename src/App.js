@@ -267,6 +267,7 @@ const TradingInterface = ({ user, tradingMode, onNotification }) => {
 
       setSymbolValidating(true);
       try {
+        const token = localStorage.getItem('token');
         const response = await axios.get(`/api/trading/validate-symbol/${orderForm.symbol}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
