@@ -251,11 +251,13 @@ const TradingInterface = ({ user, tradingMode, onNotification }) => {
   const [symbolValidation, setSymbolValidation] = useState({ valid: true, message: '' });
   const [symbolValidating, setSymbolValidating] = useState(false);
 
- useEffect(() => {
-   fetchAccountInfo();
-   fetchPositions();
-   fetchOrders();
- }, [tradingMode, fetchAccountInfo, fetchPositions, fetchOrders]);
+
+  useEffect(() => {
+    fetchAccountInfo();
+    fetchPositions();
+    fetchOrders();
+  }, [tradingMode]);
+
 
   // Validate symbol when it changes
   useEffect(() => {
@@ -265,13 +267,14 @@ const TradingInterface = ({ user, tradingMode, onNotification }) => {
         return;
       }
 
+
       setSymbolValidating(true);
       try {
         const token = localStorage.getItem('token');
         const response = await axios.get(`/api/trading/validate-symbol/${orderForm.symbol}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
-        
+       
         setSymbolValidation({
           valid: response.data.tradable,
           message: response.data.message
@@ -286,13 +289,13 @@ const TradingInterface = ({ user, tradingMode, onNotification }) => {
       }
     };
 
+
     const timeoutId = setTimeout(validateSymbol, 500); // Debounce validation
     return () => clearTimeout(timeoutId);
   }, [orderForm.symbol]);
 
 
-
-  const fetchAccountInfo = useCallback(async () => {
+  const fetchAccountInfo = async () => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.get('/api/trading/account', {
@@ -305,9 +308,9 @@ const TradingInterface = ({ user, tradingMode, onNotification }) => {
         onNotification('Unable to fetch account information. Please check your API keys.', 'error');
       }
     }
-  }, [onNotification]);
+  };
 
-  const fetchPositions = useCallback(async () => {
+  const fetchPositions = async () => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.get('/api/trading/positions', {
@@ -317,9 +320,9 @@ const TradingInterface = ({ user, tradingMode, onNotification }) => {
     } catch (error) {
       console.error('Error fetching positions:', error);
     }
-  }, []);
+  };
 
-  const fetchOrders = useCallback(async () => {
+  const fetchOrders = async () => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.get('/api/trading/orders', {
@@ -329,13 +332,8 @@ const TradingInterface = ({ user, tradingMode, onNotification }) => {
     } catch (error) {
       console.error('Error fetching orders:', error);
     }
-  }, []);
+  };
 
-  useEffect(() => {
-    fetchAccountInfo();
-    fetchPositions();
-    fetchOrders();
-  }, [tradingMode, fetchAccountInfo, fetchPositions, fetchOrders]);  
 
 
   const handlePlaceOrder = async (e) => {
